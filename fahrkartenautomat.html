@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Fahrkartenautomat</title>
+<style>
+  :root {
+    --rot: #d3202f;
+    --rot-dunkel: #8e121c;
+    --gelb: #ffcc00;
+    --screen-bg: #0d2a4a;
+    --screen-hell: #1d4f86;
+    --gruen: #2fb457;
+    --gruen-dunkel: #1b7536;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+  body {
+    background: linear-gradient(180deg, var(--screen-hell) 0%, var(--screen-bg) 100%);
+    color: white;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .app {
+    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  /* ---------- Kopfzeile ---------- */
+  .kopf {
+    flex: none;
+    background: linear-gradient(180deg, var(--rot) 0%, var(--rot-dunkel) 100%);
+    padding: 1.6vh 2.5vw;
+    display: flex; align-items: center; gap: 2vw;
+    box-shadow: 0 3px 10px rgba(0,0,0,.4);
+  }
+  .logo {
+    width: 8.5vh; height: 8.5vh; flex: none;
+    background: var(--gelb); border-radius: 50%;
+    display: grid; place-items: center;
+    box-shadow: 0 0 0 0.5vh white;
+  }
+  .logo svg { width: 70%; height: 70%; }
+  .kopf h1 { margin: 0; font-size: 4.6vh; letter-spacing: .3vh; text-transform: uppercase; line-height: 1; }
+  .kopf p { margin: .6vh 0 0; font-size: 2.2vh; opacity: .9; }
+  .kopf .rechts { margin-left: auto; text-align: right; }
+  .kopf .uhrzeit { font-size: 4.2vh; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1; }
+  .kopf .datum { font-size: 2vh; opacity: .9; margin-top: .5vh; }
+
+  /* ---------- Schritte ---------- */
+  .schritte { flex: none; display: flex; gap: 1.2vw; padding: 2vh 2.5vw 0; }
+  .schritt {
+    flex: 1; padding: 1.2vh 1.2vw; border-radius: 1vh; font-size: 2.4vh; font-weight: bold;
+    background: rgba(255,255,255,.1); color: rgba(255,255,255,.55);
+    display: flex; align-items: center; gap: 1vw;
+  }
+  .schritt b { display: inline-grid; place-items: center; width: 3.6vh; height: 3.6vh; border-radius: 50%; background: rgba(255,255,255,.2); }
+  .schritt.aktiv { background: var(--gelb); color: #222; }
+  .schritt.aktiv b { background: #222; color: var(--gelb); }
+  .schritt.fertig { background: #2e9e4f; color: white; }
+
+  /* ---------- Ansichten ---------- */
+  .ansicht { display: none; flex: 1; min-height: 0; flex-direction: column; padding: 2vh 2.5vw 2.5vh; }
+  .ansicht.sichtbar { display: flex; animation: einblenden .35s ease; }
+  @keyframes einblenden { from { opacity: 0; transform: translateY(1vh); } to { opacity: 1; transform: none; } }
+  .ansicht h2 { margin: 0 0 2vh; font-size: 4vh; }
+
+  /* Schritt 1: Ticketauswahl als 2x2-Raster */
+  .ticketliste { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2.2vh 1.8vw; }
+  .ticketwahl {
+    display: flex; align-items: center; gap: 1.8vw;
+    background: white; color: #10263f;
+    border: none; border-radius: 1.6vh; padding: 2vh 2vw;
+    font: inherit; text-align: left; cursor: pointer;
+    box-shadow: 0 .8vh 0 #8aa2bd, 0 1.2vh 2vh rgba(0,0,0,.35);
+    transition: transform .08s, box-shadow .08s;
+  }
+  .ticketwahl:active { transform: translateY(.6vh); box-shadow: 0 .2vh 0 #8aa2bd, 0 .4vh 1vh rgba(0,0,0,.35); }
+  .ticketwahl .icon { font-size: 8vh; line-height: 1; }
+  .ticketwahl .name { font-size: 3.6vh; font-weight: bold; }
+  .ticketwahl .info { font-size: 2.3vh; color: #4a6380; margin-top: .6vh; }
+  .ticketwahl .preis { margin-left: auto; font-size: 4vh; font-weight: bold; color: var(--rot); white-space: nowrap; }
+
+  /* Schritt 2: Übersicht links, Knöpfe rechts */
+  .druck-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.3fr 1fr; gap: 2.5vw; }
+  .zusammenfassung {
+    background: white; color: #10263f; border-radius: 1.6vh; padding: 3vh 2.5vw;
+    font-size: 3vh; display: flex; flex-direction: column; justify-content: center;
+  }
+  .zusammenfassung .titel { text-align: center; font-size: 5vh; font-weight: 900; color: var(--rot); letter-spacing: .2vh; margin-bottom: 2vh; }
+  .zusammenfassung .zeile { display: flex; justify-content: space-between; gap: 2vw; border-bottom: .2vh dashed #c5d2df; padding: 1.2vh 0; }
+  .zusammenfassung .zeile:last-child { border: none; font-size: 4vh; font-weight: bold; }
+  .knoepfe { display: flex; flex-direction: column; gap: 2.5vh; }
+  .knopf {
+    border: none; border-radius: 1.6vh; padding: 2vh 2vw;
+    font: inherit; font-weight: bold; cursor: pointer;
+    transition: transform .08s, box-shadow .08s;
+    display: flex; align-items: center; justify-content: center; gap: 1.5vw;
+  }
+  .knopf:active { transform: translateY(.7vh); }
+  .knopf.drucken { flex: 3; background: var(--gruen); color: white; font-size: 6vh; box-shadow: 0 1vh 0 var(--gruen-dunkel); }
+  .knopf.drucken:active { box-shadow: 0 .2vh 0 var(--gruen-dunkel); }
+  .knopf.drucken svg { width: 8vh; height: 8vh; }
+  .knopf.zurueck { flex: 1; background: #cfd8e3; color: #233; font-size: 3.2vh; box-shadow: 0 .9vh 0 #8995a3; }
+  .knopf.zurueck:active { box-shadow: 0 .2vh 0 #8995a3; }
+
+  /* Druckvorgang / Fertig */
+  .mitte { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 3vh; }
+  .mitte h2 { font-size: 5.5vh; margin: 0; }
+  .mitte p { margin: 0; font-size: 3.2vh; }
+  .spinner { width: 13vh; height: 13vh; border-radius: 50%; border: 1.3vh solid rgba(255,255,255,.2); border-top-color: var(--gelb); animation: dreh .9s linear infinite; }
+  @keyframes dreh { to { transform: rotate(360deg); } }
+  .balken { width: 55vw; height: 3vh; border-radius: 1.5vh; background: rgba(255,255,255,.15); overflow: hidden; }
+  .balken div { height: 100%; width: 0; background: var(--gelb); }
+  .haken { width: 16vh; height: 16vh; border-radius: 50%; background: var(--gruen); display: grid; place-items: center; font-size: 10vh; box-shadow: 0 0 0 1.5vh rgba(47,180,87,.3); }
+  .pfeil { font-size: 7vh; color: var(--gelb); animation: hopp 1s infinite; line-height: 1; }
+  @keyframes hopp { 50% { transform: translateY(1.5vh); } }
+  .mitte .knopf.drucken { flex: none; font-size: 3.6vh; padding: 2vh 5vw; }
+
+  /* Hinweis bei Hochformat */
+  .drehen { display: none; }
+  @media (orientation: portrait) {
+    .drehen {
+      display: flex; position: fixed; inset: 0; z-index: 10; background: var(--screen-bg);
+      flex-direction: column; align-items: center; justify-content: center; gap: 20px; font-size: 26px; text-align: center; padding: 20px;
+    }
+    .drehen span { font-size: 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="kopf">
+    <div class="logo">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="6" y="6" width="36" height="32" rx="6" fill="#d3202f"/>
+        <rect x="10" y="11" width="28" height="12" rx="2" fill="#bfe3ff"/>
+        <rect x="10" y="27" width="6" height="4" rx="1" fill="#ffcc00"/>
+        <rect x="32" y="27" width="6" height="4" rx="1" fill="#ffcc00"/>
+        <circle cx="15" cy="40" r="4" fill="#222"/>
+        <circle cx="33" cy="40" r="4" fill="#222"/>
+      </svg>
+    </div>
+    <div>
+      <h1>Fahrkarten</h1>
+      <p>Haltestelle Pfadfinderheim · Linie 7</p>
+    </div>
+    <div class="rechts">
+      <div class="uhrzeit" id="uhrzeit">--:--</div>
+      <div class="datum" id="datum"></div>
+    </div>
+  </div>
+
+  <div class="schritte">
+    <div class="schritt" id="s1"><b>1</b> Ticket wählen</div>
+    <div class="schritt" id="s2"><b>2</b> Drucken</div>
+  </div>
+
+  <!-- Schritt 1 -->
+  <div class="ansicht" id="ansicht-wahl">
+    <h2>Bitte wählen Sie Ihr Ticket</h2>
+    <div class="ticketliste" id="ticketliste"></div>
+  </div>
+
+  <!-- Schritt 2 -->
+  <div class="ansicht" id="ansicht-drucken">
+    <h2>Ihr Ticket</h2>
+    <div class="druck-layout">
+      <div class="zusammenfassung" id="zusammenfassung"></div>
+      <div class="knoepfe">
+        <button class="knopf drucken" id="btn-drucken">
+          <svg viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M6 2h12v5H6zM4 8h16a2 2 0 0 1 2 2v7h-4v5H6v-5H2v-7a2 2 0 0 1 2-2zm4 9v3h8v-3zm10-6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg>
+          Drucken
+        </button>
+        <button class="knopf zurueck" id="btn-zurueck">◀ Zurück</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Druckvorgang -->
+  <div class="ansicht" id="ansicht-druckt">
+    <div class="mitte">
+      <div class="spinner"></div>
+      <h2>Ticket wird gedruckt…</h2>
+      <div class="balken"><div id="balken"></div></div>
+    </div>
+  </div>
+
+  <!-- Fertig -->
+  <div class="ansicht" id="ansicht-fertig">
+    <div class="mitte">
+      <div class="haken">✓</div>
+      <h2>Bitte entnehmen Sie Ihr Ticket!</h2>
+      <p>Gute Fahrt bei <b>Martins Mission</b>!</p>
+      <div class="pfeil">▼</div>
+      <button class="knopf drucken" id="btn-neu">Neues Ticket</button>
+    </div>
+  </div>
+</div>
+
+<div class="drehen"><span>🔄</span>Bitte das iPad quer halten</div>
+
+<script>
+  const TICKETS = [
+    { icon: "🧒", name: "Kinderticket",      info: "1 Kind · Einzelfahrt",        preis: 1.20 },
+    { icon: "🧑", name: "Erwachsenenticket", info: "1 Person · Einzelfahrt",      preis: 2.80 },
+    { icon: "👨‍👩‍👧‍👦", name: "Gruppenticket",     info: "bis 5 Personen · Tageskarte", preis: 9.90 },
+    { icon: "🌞", name: "Tagesticket",       info: "1 Person · ganzer Tag",       preis: 5.50 },
+  ];
+  const ZURUECK_NACH_SEKUNDEN = 10; // Fertig-Bildschirm springt danach automatisch zum Start
+
+  let gewaehlt = null, resetTimer = null;
+  const $ = id => document.getElementById(id);
+  const euro = n => n.toFixed(2).replace(".", ",") + " €";
+
+  // Uhr
+  function uhr() {
+    const d = new Date();
+    $("uhrzeit").textContent = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    $("datum").textContent = d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  uhr(); setInterval(uhr, 10000);
+
+  // Ticketauswahl aufbauen
+  TICKETS.forEach(t => {
+    const b = document.createElement("button");
+    b.className = "ticketwahl";
+    b.innerHTML = `<div class="icon">${t.icon}</div>
+      <div><div class="name">${t.name}</div><div class="info">${t.info}</div></div>
+      <div class="preis">${euro(t.preis)}</div>`;
+    b.onclick = () => { klick(); waehle(t); };
+    $("ticketliste").appendChild(b);
+  });
+
+  function zeige(name) {
+    document.querySelectorAll(".ansicht").forEach(a => a.classList.remove("sichtbar"));
+    $("ansicht-" + name).classList.add("sichtbar");
+    $("s1").className = "schritt " + (name === "wahl" ? "aktiv" : "fertig");
+    $("s2").className = "schritt " + (name === "drucken" || name === "druckt" ? "aktiv" : name === "fertig" ? "fertig" : "");
+  }
+
+  function waehle(t) {
+    gewaehlt = t;
+    $("zusammenfassung").innerHTML = `
+      <div class="titel">MARTINS MISSION</div>
+      <div class="zeile"><span>Ticket</span><span>${t.name}</span></div>
+      <div class="zeile"><span>Gültigkeit</span><span>${t.info}</span></div>
+      <div class="zeile"><span>Zu zahlen</span><span>${euro(t.preis)}</span></div>`;
+    zeige("drucken");
+  }
+
+  $("btn-zurueck").onclick = () => { klick(); zeige("wahl"); };
+  $("btn-neu").onclick = () => { klick(); clearTimeout(resetTimer); zeige("wahl"); };
+
+  $("btn-drucken").onclick = () => {
+    audioStart();
+    klick();
+    zeige("druckt");
+    const dauer = 2600;
+    const balken = $("balken");
+    balken.style.transition = "none"; balken.style.width = "0";
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      balken.style.transition = `width ${dauer}ms linear`; balken.style.width = "100%";
+    }));
+    druckerGeraeusch(dauer);
+    setTimeout(() => {
+      fertigSound();
+      zeige("fertig");
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => zeige("wahl"), ZURUECK_NACH_SEKUNDEN * 1000);
+    }, dauer + 100);
+  };
+
+  // ---------- Sound (Web Audio, keine Dateien nötig) ----------
+  let ctx = null;
+  function audioStart() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+  }
+
+  function klick() {
+    audioStart();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "square"; o.frequency.value = 1400;
+    g.gain.setValueAtTime(0.08, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    o.connect(g).connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + 0.06);
+  }
+
+  // Ratterndes Druckergeräusch
+  function druckerGeraeusch(ms) {
+    const t0 = ctx.currentTime, dauer = ms / 1000;
+    const len = Math.floor(ctx.sampleRate * dauer);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    const rauschen = ctx.createBufferSource(); rauschen.buffer = buf;
+    const filter = ctx.createBiquadFilter(); filter.type = "bandpass"; filter.frequency.value = 2200; filter.Q.value = 1.2;
+    const g = ctx.createGain(); g.gain.value = 0;
+    for (let t = 0; t < dauer; t += 0.045) {
+      g.gain.setValueAtTime(0.35, t0 + t);
+      g.gain.setValueAtTime(0.05, t0 + t + 0.025);
+    }
+    g.gain.setValueAtTime(0, t0 + dauer);
+    rauschen.connect(filter).connect(g).connect(ctx.destination);
+    rauschen.start(t0); rauschen.stop(t0 + dauer);
+
+    const m = ctx.createOscillator(), mg = ctx.createGain();
+    m.type = "sawtooth"; m.frequency.value = 95;
+    mg.gain.setValueAtTime(0, t0);
+    mg.gain.linearRampToValueAtTime(0.05, t0 + 0.1);
+    mg.gain.setValueAtTime(0.05, t0 + dauer - 0.1);
+    mg.gain.linearRampToValueAtTime(0, t0 + dauer);
+    m.connect(mg).connect(ctx.destination);
+    m.start(t0); m.stop(t0 + dauer);
+  }
+
+  // "Ding-Ding-Ding" wenn das Ticket fertig ist
+  function fertigSound() {
+    const t0 = ctx.currentTime;
+    [[880, 0], [1318.5, 0.18], [1760, 0.36]].forEach(([f, dt]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t0 + dt);
+      g.gain.linearRampToValueAtTime(0.3, t0 + dt + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + dt + 0.9);
+      o.connect(g).connect(ctx.destination);
+      o.start(t0 + dt); o.stop(t0 + dt + 1);
+    });
+  }
+
+  zeige("wahl");
+</script>
+</body>
+</html>
